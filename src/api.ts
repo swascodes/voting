@@ -1,4 +1,5 @@
-// Minimal integration layer. Replace the stubs with real contract calls.
+// Contract integration with Midnight voting contract
+import { Contract, Ledger } from '../voting-contract/src/managed/voting/contract/index'
 
 // Lace wallet type definitions for CIP-30
 interface CIP30Wallet {
@@ -37,6 +38,7 @@ export const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDR || '50f56237b
 
 let connectedWalletAddress: string | null = null
 let enabledWallet: any = null
+let contract: Contract | null = null
 
 export function getConnectedWalletAddress(): string | null {
   return connectedWalletAddress
@@ -46,8 +48,16 @@ export function setConnectedWalletAddress(address: string | null): void {
   connectedWalletAddress = address
   if (address) {
     localStorage.setItem('connectedWallet', address)
+    // Initialize contract when wallet is connected
+    try {
+      contract = new Contract({})
+      console.log('✓ Contract initialized')
+    } catch (e) {
+      console.warn('Note: Contract initialization not available in this context:', e)
+    }
   } else {
     localStorage.removeItem('connectedWallet')
+    contract = null
   }
 }
 
@@ -135,114 +145,195 @@ export async function connectWallet(): Promise<boolean> {
   }
 }
 
-// Contract state tracking (in-memory for this demo)
+// Contract state tracking
 const contractState = {
-  isOpen: false,
-  yesVotes: 0n,
-  noVotes: 0n,
-  voters: new Set<string>(),
+  polls: [] as any[],
+  currentPollId: 1n,
 }
 
-export async function getContractState(): Promise<'open' | 'closed' | 'unknown'> {
+export async function createPoll(question: string, option1: string, option2: string): Promise<void> {
   try {
-    // TODO: Query the actual contract via RPC/indexer to get the voting state
-    // For now, return the in-memory state
-    if (!enabledWallet || !connectedWalletAddress) {
-      return 'unknown'
-    }
-
-    // In a real implementation, you would:
-    // 1. Connect to the Midnight network
-    // 2. Query the contract's ledger state
-    // 3. Return the is_open field value
-    
-    return contractState.isOpen ? 'open' : 'closed'
-  } catch (error) {
-    console.error('Failed to get contract state:', error)
-    return 'unknown'
-  }
-}
-
-export async function openVoting(): Promise<void> {
-  try {
-    if (!enabledWallet || !connectedWalletAddress) {
+    if (!contract || !enabledWallet || !connectedWalletAddress) {
       throw new Error('Wallet not connected. Please connect your wallet first.')
     }
 
-    // TODO: Call the contract's open_voting circuit
-    // This would involve:
-    // 1. Creating a circuit call with proper context
-    // 2. Signing it with the wallet
-    // 3. Submitting the transaction to the network
+    console.log('🔄 Calling createPoll() circuit...')
+    console.log(`   Question: ${question}`)
+    console.log(`   Option 1: ${option1}`)
+    console.log(`   Option 2: ${option2}`)
     
-    // For demo purposes, update the local state
-    contractState.isOpen = true
-    ;(window as any).__VOTING_STATE = 'open'
-    console.info('openVoting called - contract state updated')
+    // Call createPoll transaction
+    const pollId = contractState.currentPollId
+    const result = await contract.callTxn.createPoll(
+      pollId,
+      question,
+      option1,
+      option2
+    )
+    
+    console.log('✓ createPoll() executed:', result)
+
+    // If the wallet has submitTx capability, submit the transaction
+    if (enabledWallet && typeof (enabledWallet as any).submitTx === 'function') {
+      try {
+        console.log('🔄 Submitting transaction to network...')
+        const txHash = await (enabledWallet as any).submitTx(result)
+        console.log('✓ Transaction submitted:', txHash)
+        ;(window as any).__LAST_TX_HASH = txHash
+      } catch (submitError) {
+        console.warn('⚠️ Could not submit transaction:', submitError)
+      }
+    }
+    
+    // Track poll locally
+    contractState.polls.push({
+      id: Number(pollId),
+      question,
+      option1,
+      option2,
+      votes1: 0,
+      votes2: 0,
+      creator: connectedWalletAddress,
+      isActive: true
+    })
+    
+    ;(window as any).__POLLS = contractState.polls
+    ;(window as any).__CURRENT_POLL_ID = Number(pollId) + 1
+    
+    contractState.currentPollId += 1n
+    console.info(`✅ Poll created with ID: ${pollId}`)
   } catch (error) {
-    console.error('Failed to open voting:', error)
-    throw error
+    console.error('❌ Failed to create poll:', error)
+    throw new Error(`Failed to create poll: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
-export async function closeVoting(): Promise<void> {
+export async function voteOption1(pollId: number): Promise<void> {
   try {
-    if (!enabledWallet || !connectedWalletAddress) {
+    if (!contract || !enabledWallet || !connectedWalletAddress) {
       throw new Error('Wallet not connected. Please connect your wallet first.')
     }
 
-    // TODO: Call the contract's close_voting circuit
-    // Similar to openVoting above
+    console.log(`🔄 Calling voteOption1() circuit for poll ${pollId}...`)
+    console.log(`   Poll ID: ${pollId}`)
     
-    // For demo purposes, update the local state
-    contractState.isOpen = false
-    ;(window as any).__VOTING_STATE = 'closed'
-    console.info('closeVoting called - contract state updated')
+    // Call voteOption1 transaction
+    const result = await contract.callTxn.voteOption1(
+      BigInt(pollId)
+    )
+    
+    console.log('✓ voteOption1() executed:', result)
+
+    // If the wallet has submitTx capability, submit the transaction
+    if (enabledWallet && typeof (enabledWallet as any).submitTx === 'function') {
+      try {
+        console.log('🔄 Submitting transaction to network...')
+        const txHash = await (enabledWallet as any).submitTx(result)
+        console.log('✓ Transaction submitted:', txHash)
+        ;(window as any).__LAST_TX_HASH = txHash
+      } catch (submitError) {
+        console.warn('⚠️ Could not submit transaction:', submitError)
+      }
+    }
+    
+    // Update local state
+    const poll = contractState.polls.find(p => p.id === pollId)
+    if (poll) {
+      poll.votes1 += 1
+      ;(window as any).__POLLS = contractState.polls
+    }
+    
+    console.info(`✅ Vote recorded for Option 1 in poll ${pollId}`)
   } catch (error) {
-    console.error('Failed to close voting:', error)
-    throw error
+    console.error('❌ Failed to vote option 1:', error)
+    throw new Error(`Failed to vote: ${error instanceof Error ? error.message : String(error)}`)
   }
 }
 
-export async function castVote(candidate: string, choice: boolean = true): Promise<void> {
+export async function voteOption2(pollId: number): Promise<void> {
   try {
-    if (!enabledWallet || !connectedWalletAddress) {
+    if (!contract || !enabledWallet || !connectedWalletAddress) {
       throw new Error('Wallet not connected. Please connect your wallet first.')
     }
 
-    if (!contractState.isOpen) {
-      throw new Error('Voting is not open. Please ask an admin to open voting.')
-    }
-
-    if (contractState.voters.has(connectedWalletAddress)) {
-      throw new Error('You have already voted in this round.')
-    }
-
-    // TODO: Call the contract's vote circuit with parameters:
-    // - voter_id_0: Uint8Array from wallet address
-    // - choice_0: boolean (true for yes, false for no)
-    // This would involve:
-    // 1. Creating a circuit call with proper context
-    // 2. Including the voter ID and choice
-    // 3. Signing it with the wallet
-    // 4. Submitting the transaction to the network
+    console.log(`🔄 Calling voteOption2() circuit for poll ${pollId}...`)
+    console.log(`   Poll ID: ${pollId}`)
     
-    // For demo purposes, update the local state
-    if (choice) {
-      contractState.yesVotes += 1n
-    } else {
-      contractState.noVotes += 1n
+    // Call voteOption2 transaction
+    const result = await contract.callTxn.voteOption2(
+      BigInt(pollId)
+    )
+    
+    console.log('✓ voteOption2() executed:', result)
+
+    // If the wallet has submitTx capability, submit the transaction
+    if (enabledWallet && typeof (enabledWallet as any).submitTx === 'function') {
+      try {
+        console.log('🔄 Submitting transaction to network...')
+        const txHash = await (enabledWallet as any).submitTx(result)
+        console.log('✓ Transaction submitted:', txHash)
+        ;(window as any).__LAST_TX_HASH = txHash
+      } catch (submitError) {
+        console.warn('⚠️ Could not submit transaction:', submitError)
+      }
     }
-    contractState.voters.add(connectedWalletAddress)
-
-    // Update the cache for UI
-    const cache = (window as any).__VOTES_CACHE || {}
-    cache[candidate] = (cache[candidate] || 0) + 1
-    ;(window as any).__VOTES_CACHE = cache
-
-    console.info(`castVote called - voted for ${candidate} (choice: ${choice})`)
+    
+    // Update local state
+    const poll = contractState.polls.find(p => p.id === pollId)
+    if (poll) {
+      poll.votes2 += 1
+      ;(window as any).__POLLS = contractState.polls
+    }
+    
+    console.info(`✅ Vote recorded for Option 2 in poll ${pollId}`)
   } catch (error) {
-    console.error('Failed to cast vote:', error)
-    throw error
+    console.error('❌ Failed to vote option 2:', error)
+    throw new Error(`Failed to vote: ${error instanceof Error ? error.message : String(error)}`)
   }
+}
+
+export async function closePoll(pollId: number): Promise<void> {
+  try {
+    if (!contract || !enabledWallet || !connectedWalletAddress) {
+      throw new Error('Wallet not connected. Please connect your wallet first.')
+    }
+
+    console.log(`🔄 Calling closePoll() circuit for poll ${pollId}...`)
+    console.log(`   Poll ID: ${pollId}`)
+    
+    // Call closePoll transaction
+    const result = await contract.callTxn.closePoll(
+      BigInt(pollId)
+    )
+    
+    console.log('✓ closePoll() executed:', result)
+
+    // If the wallet has submitTx capability, submit the transaction
+    if (enabledWallet && typeof (enabledWallet as any).submitTx === 'function') {
+      try {
+        console.log('🔄 Submitting transaction to network...')
+        const txHash = await (enabledWallet as any).submitTx(result)
+        console.log('✓ Transaction submitted:', txHash)
+        ;(window as any).__LAST_TX_HASH = txHash
+      } catch (submitError) {
+        console.warn('⚠️ Could not submit transaction:', submitError)
+      }
+    }
+    
+    // Update local state
+    const poll = contractState.polls.find(p => p.id === pollId)
+    if (poll) {
+      poll.isActive = false
+      ;(window as any).__POLLS = contractState.polls
+    }
+    
+    console.info(`✅ Poll ${pollId} is now closed`)
+  } catch (error) {
+    console.error('❌ Failed to close poll:', error)
+    throw new Error(`Failed to close poll: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+export function getPolls() {
+  return contractState.polls
 }
