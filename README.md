@@ -1,5 +1,6 @@
 <<<<<<< HEAD
-![ccf572e0-c1ed-4b6d-b687-af60d5c1eeeb](https://github.com/user-attachments/assets/ff22a9ed-4ed0-489e-a762-f16b0f7eef62)
+<img width="1785" height="831" alt="image" src="https://github.com/user-attachments/assets/5ef38b84-c36b-4445-963f-f83098cc3a0a" />
+
 
 # Voting Frontend - Lace Wallet Integration
 
@@ -224,3 +225,4 @@ See `src/api.ts` for implementation TODOs.
 =======
 # voting
 >>>>>>> 7768db6a7e540c5c9d6e8902e67cd2ebebff62ae
+
