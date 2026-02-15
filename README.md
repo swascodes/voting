@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 <img width="1785" height="831" alt="image" src="https://github.com/user-attachments/assets/5ef38b84-c36b-4445-963f-f83098cc3a0a" />
 
 
@@ -225,4 +225,5 @@ See `src/api.ts` for implementation TODOs.
 =======
 # voting
 >>>>>>> 7768db6a7e540c5c9d6e8902e67cd2ebebff62ae
+
 
