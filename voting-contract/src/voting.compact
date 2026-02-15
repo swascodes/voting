@@ -1,0 +1,88 @@
+pragma language_version >= 0.20;
+import CompactStandardLibrary;
+
+// public state - stores all polls
+export ledger polls: Poll[];
+
+// public state - stores vote counts
+export ledger voteCount: VoteCount[];
+
+// data structure for a poll
+struct Poll {
+  id: U64,
+  creator: Address,
+  question: String,
+  option1: String,
+  option2: String,
+  isActive: Boolean
+}
+
+// data structure for tracking votes
+struct VoteCount {
+  pollId: U64,
+  votes1: U64,
+  votes2: U64
+}
+
+// circuit to create a new poll
+export circuit createPoll(
+  pollId: U64,
+  question: String,
+  option1: String,
+  option2: String
+): [] {
+  let newPoll = Poll {
+    id: pollId,
+    creator: self.caller(),
+    question: question,
+    option1: option1,
+    option2: option2,
+    isActive: true
+  };
+  
+  polls.push(newPoll);
+  
+  let newVoteCount = VoteCount {
+    pollId: pollId,
+    votes1: 0,
+    votes2: 0
+  };
+  
+  voteCount.push(newVoteCount);
+}
+
+// circuit to vote for option 1
+export circuit voteOption1(pollId: U64): [] {
+  let mut i: U64 = 0;
+  while (i < voteCount.len()) {
+    if (voteCount[i].pollId == pollId) {
+      voteCount[i].votes1 = voteCount[i].votes1 + 1;
+      break;
+    }
+    i = i + 1;
+  }
+}
+
+// circuit to vote for option 2
+export circuit voteOption2(pollId: U64): [] {
+  let mut i: U64 = 0;
+  while (i < voteCount.len()) {
+    if (voteCount[i].pollId == pollId) {
+      voteCount[i].votes2 = voteCount[i].votes2 + 1;
+      break;
+    }
+    i = i + 1;
+  }
+}
+
+// circuit to close a poll (only creator can do this)
+export circuit closePoll(pollId: U64): [] {
+  let mut i: U64 = 0;
+  while (i < polls.len()) {
+    if (polls[i].id == pollId && polls[i].creator == self.caller()) {
+      polls[i].isActive = false;
+      break;
+    }
+    i = i + 1;
+  }
+}
