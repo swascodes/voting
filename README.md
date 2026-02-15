@@ -1,4 +1,7 @@
-<<<<<<< HEAD
+
+<img width="1785" height="831" alt="image" src="https://github.com/user-attachments/assets/5ef38b84-c36b-4445-963f-f83098cc3a0a" />
+
+
 # Voting Frontend - Lace Wallet Integration
 
 A Vite + React TypeScript frontend for interacting with the voting smart contract deployed on Midnight network. Users connect their Lace wallet and participate in voting.
@@ -217,7 +220,10 @@ LACE_SETUP.md          → Wallet guide
 4. ⏳ Implement circuit calls (getContractState, openVoting, closeVoting, castVote)
 5. ⏳ Test on Midnight Preview network
 
+
 See `src/api.ts` for implementation TODOs.
 =======
 # voting
 >>>>>>> 7768db6a7e540c5c9d6e8902e67cd2ebebff62ae
+
+
